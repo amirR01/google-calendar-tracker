@@ -9,7 +9,7 @@ import pytz
 # === Color Category Mapping (Finalized) ===
 COLOR_CATEGORY_MAP = {
     '2':  'Professional Tasks',     # Basil (Green)
-    '9':  'Meetings',               # Blueberry (Blue)
+    '7':  'Meetings',               # Blueberry (Blue)
     '3':  'Social Connections',     # Grape (Purple)
     '5':  'Emotional Recharge',     # Banana (Yellow)
     '1':  'Self-Maintenance',       # Lavender
@@ -54,7 +54,7 @@ def analyze_events(events):
         summary = event.get('summary', 'Untitled').strip().lower()
 
         if not start or not end or color_id not in COLOR_CATEGORY_MAP:
-            continue
+            print("something bad happend")
 
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)

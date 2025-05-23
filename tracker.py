@@ -20,24 +20,38 @@ COLOR_CATEGORY_MAP = {
 }
 
 def fetch_events(service, time_min, time_max):
-    events_result = service.events().list(
-        calendarId='primary',
-        timeMin=time_min,
-        timeMax=time_max,
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
-    return events_result.get('items', [])
+    all_events = []
+    page_token = None
+
+    while True:
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            orderBy='startTime',
+            maxResults=250,
+            pageToken=page_token
+        ).execute()
+
+        items = events_result.get('items', [])
+        all_events.extend(items)
+
+        page_token = events_result.get('nextPageToken')
+        if not page_token:
+            break
+
+    return all_events
 
 def analyze_events(events):
     category_time = defaultdict(float)
-    category_titles = defaultdict(list)
+    category_title_duration = defaultdict(lambda: defaultdict(float))
 
     for event in events:
         start = event.get('start', {}).get('dateTime')
         end = event.get('end', {}).get('dateTime')
         color_id = event.get('colorId', '0')
-        summary = event.get('summary', 'Untitled')
+        summary = event.get('summary', 'Untitled').strip().lower()
 
         if not start or not end or color_id not in COLOR_CATEGORY_MAP:
             continue
@@ -48,11 +62,12 @@ def analyze_events(events):
 
         category = COLOR_CATEGORY_MAP[color_id]
         category_time[category] += duration
-        category_titles[category].append(summary)
+        category_title_duration[category][summary] += duration
 
+    # Get top 3 titles by duration for each category
     top_titles = {
-        category: Counter(titles).most_common(3)
-        for category, titles in category_titles.items()
+        category: sorted(titles.items(), key=lambda x: -x[1])[:3]
+        for category, titles in category_title_duration.items()
     }
 
     return category_time, top_titles
@@ -60,11 +75,11 @@ def analyze_events(events):
 def print_report(category_time, top_titles, start_date, end_date):
     print("\n📊 Calendar Summary:")
     print(f"🗓️  From {start_date.strftime('%A, %Y-%m-%d')} to {end_date.strftime('%A, %Y-%m-%d')}\n")
-    
+
     for category, hours in sorted(category_time.items(), key=lambda x: -x[1]):
         print(f"🔸 {category}: {hours:.2f} hours")
-        for title, count in top_titles[category]:
-            print(f"    - {title} ({count}x)")
+        for title, duration in top_titles[category]:
+            print(f"    - {title} ({duration:.2f}h)")
         print()
 
 

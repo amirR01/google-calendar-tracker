@@ -55,6 +55,7 @@ def analyze_events(events):
 
         if not start or not end or color_id not in COLOR_CATEGORY_MAP:
             print("something bad happend")
+            continue
 
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)

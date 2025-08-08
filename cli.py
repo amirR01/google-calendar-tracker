@@ -4,7 +4,7 @@ from calendar_logic import CalendarAnalyzer
 from date_utils import DateRangeUtils
 from visualization import CalendarVisualizer
 from datetime import datetime, date
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Any, Union
 
 class CalendarTrackerCLI:
     """Command Line Interface for the Calendar Tracker."""
@@ -25,7 +25,8 @@ class CalendarTrackerCLI:
         print("  1. Week (Sunday–Saturday)")
         print("  2. Month (Calendar month)")
         print("  3. Custom date range")
-        choice = input("Enter 1 / 2 / 3: ").strip()
+        print("  4. Weekly trends (last N weeks)")
+        choice = input("Enter 1 / 2 / 3 / 4: ").strip()
         return choice
     
     def ask_for_visualization(self) -> bool:
@@ -44,12 +45,30 @@ class CalendarTrackerCLI:
             else:
                 print("Please enter 'y' for yes or 'n' for no.")
     
-    def get_date_range_from_user(self) -> Tuple[str, Tuple[date, date]]:
+    def get_number_of_weeks(self) -> int:
         """
-        Get date range based on user choice.
+        Get the number of weeks for trend analysis from user.
         
         Returns:
-            Tuple of (mode, (start_date, end_date))
+            Number of weeks to analyze
+        """
+        while True:
+            try:
+                num_weeks = input("How many weeks to analyze? (2-12): ").strip()
+                weeks = int(num_weeks)
+                if 2 <= weeks <= 12:
+                    return weeks
+                else:
+                    print("Please enter a number between 2 and 12.")
+            except ValueError:
+                print("Please enter a valid number.")
+    
+    def get_date_range_from_user(self) -> Union[Tuple[str, Tuple[date, date]], Tuple[str, int]]:
+        """
+        Get date range or trend parameters based on user choice.
+        
+        Returns:
+            Tuple of (mode, parameters) where parameters can be (start_date, end_date) or num_weeks
         """
         choice = self.display_menu()
         
@@ -62,6 +81,10 @@ class CalendarTrackerCLI:
         elif choice == "3":
             mode = "custom"
             start_date, end_date = self._get_custom_dates()
+        elif choice == "4":
+            mode = "trends"
+            num_weeks = self.get_number_of_weeks()
+            return mode, num_weeks
         else:
             print("Invalid choice.")
             raise ValueError("Invalid menu choice")
@@ -117,6 +140,49 @@ class CalendarTrackerCLI:
                 print(f"    - {title} ({duration:.2f}h)")
             print()
 
+    def print_trend_report(self, trend_data: Dict[str, Any]) -> None:
+        """
+        Print the trend analysis report to console.
+        
+        Args:
+            trend_data: Dictionary containing weekly data and trends
+        """
+        weekly_data = trend_data['weekly_data']
+        trends = trend_data['trends']
+        summary = trend_data['summary']
+        
+        print(f"\n📈 Weekly Trends Analysis ({summary['total_weeks']} weeks)")
+        print(f"🗓️  From {weekly_data[0]['week_start'].strftime('%Y-%m-%d')} to {weekly_data[-1]['week_end'].strftime('%Y-%m-%d')}\n")
+        
+        # Show trend summary
+        if summary['increasing_categories']:
+            print("📈 Increasing categories:")
+            for category in summary['increasing_categories']:
+                change = trends[category]['trend_change']
+                percentage = trends[category]['percentage_change']
+                print(f"  ▲ {category}: +{change:.1f}h ({percentage:+.1f}%)")
+            print()
+        
+        if summary['decreasing_categories']:
+            print("📉 Decreasing categories:")
+            for category in summary['decreasing_categories']:
+                change = trends[category]['trend_change']
+                percentage = trends[category]['percentage_change']
+                print(f"  ▼ {category}: {change:.1f}h ({percentage:+.1f}%)")
+            print()
+        
+        if summary['most_improved'] and trends[summary['most_improved']]['trend_change'] > 0.5:
+            print(f"🏆 Most improved: {summary['most_improved']} (+{trends[summary['most_improved']]['trend_change']:.1f}h)")
+        
+        if summary['most_declined'] and trends[summary['most_declined']]['trend_change'] < -0.5:
+            print(f"⚠️  Most declined: {summary['most_declined']} ({trends[summary['most_declined']]['trend_change']:.1f}h)")
+        
+        print(f"\n📊 Weekly breakdown:")
+        for i, week_data in enumerate(weekly_data):
+            total = week_data['total_hours']
+            print(f"Week {i+1} ({week_data['week_start'].strftime('%m/%d')}-{week_data['week_end'].strftime('%m/%d')}): {total:.1f} total hours")
+        print()
+
     def run(self) -> None:
         """
         Main CLI loop - run the complete application.
@@ -125,20 +191,39 @@ class CalendarTrackerCLI:
             print("🗓️ Welcome to Google Calendar Tracker!\n")
             
             # Get user preferences
-            mode, (start_date, end_date) = self.get_date_range_from_user()
+            mode_result = self.get_date_range_from_user()
             
-            print(f"\n🔄 Analyzing {mode} data...")
+            if mode_result[0] == "trends":
+                # Handle trends analysis
+                mode, num_weeks = mode_result
+                print(f"\n🔄 Analyzing trends over last {num_weeks} weeks...")
+                
+                # Perform trend analysis
+                trend_data = self.analyzer.analyze_weekly_trends(num_weeks)
+                
+                # Display results
+                self.print_trend_report(trend_data)
+                
+                # Ask if user wants to see trend chart
+                if self.ask_for_visualization():
+                    chart_title = f"Weekly Trends Analysis: Last {num_weeks} Weeks"
+                    self.visualizer.create_trend_chart(trend_data, chart_title)
             
-            # Perform analysis
-            category_time, top_titles = self.analyzer.analyze_calendar_range(start_date, end_date)
-            
-            # Display results
-            self.print_report(category_time, top_titles, start_date, end_date)
-            
-            # Ask if user wants to see pie chart
-            if self.ask_for_visualization():
-                chart_title = f"Time Distribution: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-                self.visualizer.create_pie_chart(category_time, top_titles, chart_title)
+            else:
+                # Handle regular analysis
+                mode, (start_date, end_date) = mode_result
+                print(f"\n🔄 Analyzing {mode} data...")
+                
+                # Perform analysis
+                category_time, top_titles = self.analyzer.analyze_calendar_range(start_date, end_date)
+                
+                # Display results
+                self.print_report(category_time, top_titles, start_date, end_date)
+                
+                # Ask if user wants to see pie chart
+                if self.ask_for_visualization():
+                    chart_title = f"Time Distribution: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+                    self.visualizer.create_pie_chart(category_time, top_titles, chart_title)
             
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")

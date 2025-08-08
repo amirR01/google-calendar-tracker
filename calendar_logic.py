@@ -131,3 +131,97 @@ class CalendarAnalyzer:
             Dictionary mapping color IDs to category names
         """
         return COLOR_CATEGORY_MAP.copy()
+    
+    def analyze_weekly_trends(self, num_weeks: int) -> Dict[str, Any]:
+        """
+        Analyze trends over the last N weeks for each category.
+        
+        Args:
+            num_weeks: Number of weeks to analyze (including current week)
+            
+        Returns:
+            Dictionary containing:
+            - weekly_data: List of weekly breakdowns
+            - trends: Dictionary with trend analysis for each category
+            - summary: Overall trend summary
+        """
+        weekly_data = []
+        all_category_hours = defaultdict(list)
+        
+        # Get data for each week
+        for week_offset in range(num_weeks - 1, -1, -1):  # Go backwards from oldest to newest
+            # Calculate week start date
+            today = date.today()
+            days_back = week_offset * 7 + (today.weekday() + 1) % 7  # Adjust for Sunday start
+            week_start = today - timedelta(days=days_back)
+            if week_start.weekday() != 6:  # If not Sunday, adjust
+                week_start = week_start - timedelta(days=(week_start.weekday() + 1) % 7)
+            week_end = week_start + timedelta(days=6)
+            
+            # Get week data
+            category_time, top_titles = self.analyze_calendar_range(week_start, week_end)
+            
+            # Store weekly data
+            week_info = {
+                'week_start': week_start,
+                'week_end': week_end,
+                'category_time': category_time,
+                'top_titles': top_titles,
+                'total_hours': sum(category_time.values())
+            }
+            weekly_data.append(week_info)
+        
+        # Collect data for trend analysis - ensure all categories have the same number of data points
+        for category in COLOR_CATEGORY_MAP.values():
+            category_hours = []
+            for week_data in weekly_data:
+                category_hours.append(week_data['category_time'].get(category, 0.0))
+            all_category_hours[category] = category_hours
+        
+        # Calculate trends
+        trends = {}
+        for category, hours_list in all_category_hours.items():
+            if len(hours_list) >= 2:
+                # Calculate trend (positive = increasing, negative = decreasing)
+                recent_avg = sum(hours_list[-2:]) / 2  # Last 2 weeks average
+                older_avg = sum(hours_list[:-2]) / max(1, len(hours_list) - 2) if len(hours_list) > 2 else hours_list[0]
+                trend_change = recent_avg - older_avg
+                
+                # Calculate percentage change
+                percentage_change = (trend_change / older_avg * 100) if older_avg > 0 else 0
+                
+                trends[category] = {
+                    'hours_list': hours_list,
+                    'trend_change': trend_change,
+                    'percentage_change': percentage_change,
+                    'recent_avg': recent_avg,
+                    'older_avg': older_avg,
+                    'direction': 'increasing' if trend_change > 0.5 else 'decreasing' if trend_change < -0.5 else 'stable'
+                }
+            else:
+                trends[category] = {
+                    'hours_list': hours_list,
+                    'trend_change': 0,
+                    'percentage_change': 0,
+                    'recent_avg': hours_list[0] if hours_list else 0,
+                    'older_avg': hours_list[0] if hours_list else 0,
+                    'direction': 'stable'
+                }
+        
+        # Generate summary
+        increasing_categories = [cat for cat, data in trends.items() if data['direction'] == 'increasing']
+        decreasing_categories = [cat for cat, data in trends.items() if data['direction'] == 'decreasing']
+        
+        summary = {
+            'total_weeks': num_weeks,
+            'increasing_categories': increasing_categories,
+            'decreasing_categories': decreasing_categories,
+            'most_improved': max(trends.items(), key=lambda x: x[1]['trend_change'])[0] if trends else None,
+            'most_declined': min(trends.items(), key=lambda x: x[1]['trend_change'])[0] if trends else None
+        }
+        
+        return {
+            'weekly_data': weekly_data,
+            'trends': trends,
+            'summary': summary
+        }

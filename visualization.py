@@ -1,7 +1,7 @@
 # visualization.py
 
 import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 import matplotlib.patches as mpatches
 
 # Google Calendar color mapping to actual colors
@@ -149,3 +149,111 @@ class CalendarVisualizer:
         # Save the current figure
         plt.savefig(filename, dpi=300, bbox_inches='tight', facecolor='white')
         print(f"📊 Chart saved as: {filename}")
+    
+    def create_trend_chart(self, trend_data: Dict[str, Any], title: str = "Weekly Trends") -> None:
+        """
+        Create and display a trend chart showing category hours over weeks.
+        
+        Args:
+            trend_data: Dictionary containing weekly data and trends
+            title: Title for the chart
+        """
+        weekly_data = trend_data['weekly_data']
+        trends = trend_data['trends']
+        
+        if not weekly_data:
+            print("No trend data to visualize.")
+            return
+        
+        # Debug: Check data consistency
+        num_weeks = len(weekly_data)
+        print(f"Debug: Processing {num_weeks} weeks of data")
+        
+        # Verify all categories have the correct number of data points
+        for category, data in trends.items():
+            if len(data['hours_list']) != num_weeks:
+                print(f"Warning: {category} has {len(data['hours_list'])} data points, expected {num_weeks}")
+        
+        # Prepare data for plotting
+        weeks = [f"Week {i+1}\n{week['week_start'].strftime('%m/%d')}" for i, week in enumerate(weekly_data)]
+        num_weeks = len(weekly_data)
+        
+        # Create figure with subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+        
+        # Top chart: Line plot for trends
+        categories_to_plot = [cat for cat, data in trends.items() if max(data['hours_list']) > 0.5]  # Only plot categories with significant hours
+        
+        for category in categories_to_plot:
+            hours_list = trends[category]['hours_list']
+            color = CALENDAR_COLOR_MAP.get(category, '#cccccc')
+            
+            # Ensure hours_list matches the number of weeks
+            if len(hours_list) == num_weeks:
+                ax1.plot(weeks, hours_list, marker='o', linewidth=2.5, markersize=6, 
+                        color=color, label=category, alpha=0.8)
+            else:
+                # Debug: print mismatch info and skip this category
+                print(f"Warning: Skipping {category} - data mismatch (weeks: {num_weeks}, hours: {len(hours_list)})")
+        
+        ax1.set_title(f"Category Hours Over Time ({len(weekly_data)} weeks)", fontsize=14, weight='bold', pad=15)
+        ax1.set_ylabel("Hours per Week", fontsize=12)
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+        
+        # Bottom chart: Trend summary (bar chart of changes)
+        trend_categories = []
+        trend_changes = []
+        trend_colors = []
+        
+        # Sort by absolute change for better visualization
+        sorted_trends = sorted([(cat, data) for cat, data in trends.items() if abs(data['trend_change']) > 0.1], 
+                              key=lambda x: abs(x[1]['trend_change']), reverse=True)
+        
+        for category, trend_info in sorted_trends[:8]:  # Show top 8 changes
+            trend_categories.append(category[:15] + "..." if len(category) > 15 else category)
+            trend_changes.append(trend_info['trend_change'])
+            
+            # Color bars based on direction
+            if trend_info['direction'] == 'increasing':
+                trend_colors.append('#4caf50')  # Green for increasing
+            elif trend_info['direction'] == 'decreasing':
+                trend_colors.append('#f44336')  # Red for decreasing
+            else:
+                trend_colors.append('#9e9e9e')  # Gray for stable
+        
+        if trend_categories:
+            bars = ax2.bar(trend_categories, trend_changes, color=trend_colors, alpha=0.7)
+            ax2.set_title("Recent Trend Changes (Last 2 weeks vs Earlier)", fontsize=14, weight='bold', pad=15)
+            ax2.set_ylabel("Hours Change", fontsize=12)
+            ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+            ax2.grid(True, alpha=0.3, axis='y')
+            
+            # Add value labels on bars
+            for bar, change in zip(bars, trend_changes):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{change:+.1f}h', ha='center', va='bottom' if change > 0 else 'top',
+                        fontsize=9, weight='bold')
+        else:
+            ax2.text(0.5, 0.5, "No significant trend changes detected", 
+                    ha='center', va='center', transform=ax2.transAxes, 
+                    fontsize=12, style='italic', color='gray')
+            ax2.set_xlim(0, 1)
+            ax2.set_ylim(0, 1)
+        
+        # Rotate x-axis labels
+        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        
+        # Set main title
+        fig.suptitle(title, fontsize=16, weight='bold', y=0.95)
+        
+        # Adjust layout
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9, right=0.85)
+        
+        # Show the plot
+        plt.show()

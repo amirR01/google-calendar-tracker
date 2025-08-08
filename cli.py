@@ -138,7 +138,7 @@ class CalendarTrackerCLI:
             # Ask if user wants to see pie chart
             if self.ask_for_visualization():
                 chart_title = f"Time Distribution: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-                self.visualizer.create_pie_chart(category_time, chart_title)
+                self.visualizer.create_pie_chart(category_time, top_titles, chart_title)
             
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")

@@ -2,6 +2,7 @@
 
 from calendar_logic import CalendarAnalyzer
 from date_utils import DateRangeUtils
+from visualization import CalendarVisualizer
 from datetime import datetime, date
 from typing import Tuple, Dict, List
 
@@ -9,8 +10,9 @@ class CalendarTrackerCLI:
     """Command Line Interface for the Calendar Tracker."""
     
     def __init__(self):
-        """Initialize the CLI with calendar analyzer."""
+        """Initialize the CLI with calendar analyzer and visualizer."""
         self.analyzer = CalendarAnalyzer()
+        self.visualizer = CalendarVisualizer()
     
     def display_menu(self) -> str:
         """
@@ -25,6 +27,22 @@ class CalendarTrackerCLI:
         print("  3. Custom date range")
         choice = input("Enter 1 / 2 / 3: ").strip()
         return choice
+    
+    def ask_for_visualization(self) -> bool:
+        """
+        Ask user if they want to see a pie chart.
+        
+        Returns:
+            True if user wants visualization, False otherwise
+        """
+        while True:
+            choice = input("\nWould you like to see a pie chart? (y/n): ").strip().lower()
+            if choice in ['y', 'yes']:
+                return True
+            elif choice in ['n', 'no']:
+                return False
+            else:
+                print("Please enter 'y' for yes or 'n' for no.")
     
     def get_date_range_from_user(self) -> Tuple[str, Tuple[date, date]]:
         """
@@ -85,11 +103,16 @@ class CalendarTrackerCLI:
         print("\n📊 Calendar Summary:")
         print(f"🗓️  From {start_date.strftime('%A, %Y-%m-%d')} to {end_date.strftime('%A, %Y-%m-%d')}\n")
 
+        # Calculate total hours
+        total_hours = sum(category_time.values())
+        
         # Sort categories by time spent (highest first)
         sorted_categories = sorted(category_time.items(), key=lambda x: -x[1])
         
         for category, hours in sorted_categories:
-            print(f"🔸 {category}: {hours:.2f} hours")
+            # Calculate percentage
+            percentage = (hours / total_hours * 100) if total_hours > 0 else 0
+            print(f"🔸 {category}: {percentage:.1f}% ({hours:.2f} hours)")
             for title, duration in top_titles[category]:
                 print(f"    - {title} ({duration:.2f}h)")
             print()
@@ -111,6 +134,11 @@ class CalendarTrackerCLI:
             
             # Display results
             self.print_report(category_time, top_titles, start_date, end_date)
+            
+            # Ask if user wants to see pie chart
+            if self.ask_for_visualization():
+                chart_title = f"Time Distribution: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+                self.visualizer.create_pie_chart(category_time, chart_title)
             
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")

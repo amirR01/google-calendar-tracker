@@ -8,9 +8,9 @@ import matplotlib.patches as mpatches
 CALENDAR_COLOR_MAP = {
     'Professional Tasks': '#0f9d58',     # Basil (Green)
     'Meetings': '#4285f4',               # Blueberry (Blue) 
-    'Social Connections': '#9c27b0',     # Grape (Purple)
+    'Social Connections': '#421d5e',     # Grape (Purple)
     'Emotional Recharge': '#f9ab00',     # Banana (Yellow)
-    'Self-Maintenance': '#673ab7',       # Lavender (Purple)
+    'Self-Maintenance': '#D3D3FF',       # Lavender (Purple)
     'Life Admin': '#ff6d01',             # Tangerine (Orange)
     'Mental Struggles': '#5f6368',       # Graphite (Gray)
     'Romance': '#d93025'                 # Tomato (Red)

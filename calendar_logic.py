@@ -148,19 +148,16 @@ class CalendarAnalyzer:
         weekly_data = []
         all_category_hours = defaultdict(list)
         
-        # Get data for each week
+        today = date.today()
+        # Find the most recent Saturday (0=Monday, 6=Sunday)
+        days_since_saturday = (today.weekday() - 5) % 7  # Saturday is 5
+        last_saturday = today - timedelta(days=days_since_saturday) if today.weekday() != 5 else today
+        
         for week_offset in range(num_weeks - 1, -1, -1):  # Go backwards from oldest to newest
-            # Calculate week start date
-            today = date.today()
-            days_back = week_offset * 7 + (today.weekday() + 1) % 7  # Adjust for Sunday start
-            week_start = today - timedelta(days=days_back)
-            if week_start.weekday() != 6:  # If not Sunday, adjust
-                week_start = week_start - timedelta(days=(week_start.weekday() + 1) % 7)
-            week_end = week_start + timedelta(days=6)
-            
+            week_end = last_saturday - timedelta(days=(week_offset) * 7)
+            week_start = week_end - timedelta(days=6)
             # Get week data
             category_time, top_titles = self.analyze_calendar_range(week_start, week_end)
-            
             # Store weekly data
             week_info = {
                 'week_start': week_start,
@@ -170,7 +167,6 @@ class CalendarAnalyzer:
                 'total_hours': sum(category_time.values())
             }
             weekly_data.append(week_info)
-        
         # Collect data for trend analysis - ensure all categories have the same number of data points
         for category in COLOR_CATEGORY_MAP.values():
             category_hours = []

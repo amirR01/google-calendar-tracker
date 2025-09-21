@@ -4,7 +4,6 @@ from auth import get_credentials
 from googleapiclient.discovery import build
 from datetime import datetime, timedelta, date
 from collections import defaultdict, Counter
-import pytz
 from typing import Dict, List, Tuple, Any
 from date_utils import DateRangeUtils
 

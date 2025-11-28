@@ -220,3 +220,79 @@ class CalendarAnalyzer:
             'trends': trends,
             'summary': summary
         }
+    
+    def analyze_category_breakdown(self, start_date: date, end_date: date, target_category: str) -> Dict[str, Any]:
+        """
+        Analyze detailed breakdown for a specific category, showing event types and their time distribution.
+        
+        Args:
+            start_date: Analysis start date
+            end_date: Analysis end date
+            target_category: The category to analyze in detail
+            
+        Returns:
+            Dictionary containing:
+            - category_total_hours: Total hours spent in this category
+            - category_percentage: Percentage of total time this category represents
+            - event_types: Dictionary of event title -> hours spent
+            - event_type_percentages: Dictionary of event title -> percentage within category
+            - top_events: Top 10 events by time spent
+            - total_calendar_hours: Total hours across all categories for context
+        """
+        # Convert dates to ISO format with timezone
+        time_min, time_max = DateRangeUtils.dates_to_iso_range(start_date, end_date)
+        
+        # Fetch all events
+        all_events = self.fetch_events(time_min, time_max)
+        
+        # Process all events to get context
+        all_category_time = defaultdict(float)
+        category_events = defaultdict(lambda: defaultdict(float))
+        
+        for event in all_events:
+            start = event.get('start', {}).get('dateTime')
+            end = event.get('end', {}).get('dateTime')
+            color_id = event.get('colorId', '0')
+            summary = event.get('summary', 'Untitled').strip()
+
+            if not start or not end or color_id not in COLOR_CATEGORY_MAP:
+                continue
+
+            start_dt = datetime.fromisoformat(start)
+            end_dt = datetime.fromisoformat(end)
+            duration = (end_dt - start_dt).total_seconds() / 3600
+
+            category = COLOR_CATEGORY_MAP[color_id]
+            all_category_time[category] += duration
+            
+            # Track individual events for the target category
+            if category == target_category:
+                category_events[category][summary] += duration
+        
+        # Calculate statistics for target category
+        category_total_hours = all_category_time.get(target_category, 0.0)
+        total_calendar_hours = sum(all_category_time.values())
+        category_percentage = (category_total_hours / total_calendar_hours * 100) if total_calendar_hours > 0 else 0
+        
+        # Get event types within the target category
+        event_types = dict(category_events[target_category]) if target_category in category_events else {}
+        
+        # Calculate percentages for each event type within the category
+        event_type_percentages = {}
+        if category_total_hours > 0:
+            for event_title, hours in event_types.items():
+                event_type_percentages[event_title] = (hours / category_total_hours * 100)
+        
+        # Get top events sorted by time spent
+        top_events = sorted(event_types.items(), key=lambda x: -x[1])[:10]
+        
+        return {
+            'category_name': target_category,
+            'category_total_hours': category_total_hours,
+            'category_percentage': category_percentage,
+            'event_types': event_types,
+            'event_type_percentages': event_type_percentages,
+            'top_events': top_events,
+            'total_calendar_hours': total_calendar_hours,
+            'total_events_in_category': len(event_types)
+        }

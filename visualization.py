@@ -96,7 +96,7 @@ class CalendarVisualizer:
             
             # Category header with colored bullet (more compact, moved further right)
             ax2.text(0.35, y_position, f"●", fontsize=12, color=color, weight='bold', transform=ax2.transAxes)
-            ax2.text(0.38, y_position, f"{category}: {percentage:.1f}% ({hour:.1f}h)", 
+            ax2.text(0.38, y_position, f"{category}: {percentage:.1f}% ({hour:.2f}h)", 
                     fontsize=10, weight='bold', transform=ax2.transAxes)
             y_position -= 0.035
             
@@ -105,7 +105,7 @@ class CalendarVisualizer:
                 for activity_title, activity_hours in top_titles[category]:
                     # Truncate long activity names
                     display_title = activity_title[:35] + "..." if len(activity_title) > 35 else activity_title
-                    ax2.text(0.40, y_position, f"• {display_title} ({activity_hours:.1f}h)", 
+                    ax2.text(0.40, y_position, f"• {display_title} ({activity_hours:.2f}h)", 
                             fontsize=8, color='#666666', transform=ax2.transAxes)
                     y_position -= 0.025
             else:
@@ -254,6 +254,87 @@ class CalendarVisualizer:
         # Adjust layout
         plt.tight_layout()
         plt.subplots_adjust(top=0.9, right=0.85)
+        
+        # Show the plot
+        plt.show()
+    
+    def create_category_chart(self, category_data: Dict[str, Any], title: str = "Category Analysis") -> None:
+        """
+        Create and display a chart showing event types within a specific category.
+        
+        Args:
+            category_data: Dictionary containing category analysis results
+            title: Title for the chart
+        """
+        event_types = category_data.get('event_types', {})
+        
+        if not event_types:
+            print("No data to visualize for this category.")
+            return
+        
+        # Filter out events with very little time (less than 0.1 hours)
+        significant_events = {k: v for k, v in event_types.items() if v >= 0.1}
+        
+        if not significant_events:
+            print("No significant events (>0.1h) to visualize in this category.")
+            return
+        
+        # Prepare data - take top 15 events to avoid overcrowding
+        sorted_events = sorted(significant_events.items(), key=lambda x: -x[1])[:15]
+        event_names = [name[:30] + "..." if len(name) > 30 else name for name, _ in sorted_events]
+        event_hours = [hours for _, hours in sorted_events]
+        total_category_hours = category_data['category_total_hours']
+        
+        # Create figure with two subplots - pie chart and bar chart
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 10))
+        
+        # Pie chart on the left
+        colors = plt.cm.Set3(range(len(event_names)))  # Use a colorful palette
+        wedges, texts, autotexts = ax1.pie(
+            event_hours,
+            labels=None,  # We'll show labels separately
+            colors=colors,
+            autopct='%1.1f%%',
+            startangle=90,
+            textprops={'fontsize': 8, 'weight': 'bold'},
+            pctdistance=0.85
+        )
+        
+        # Customize percentage text
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_weight('bold')
+            autotext.set_fontsize(8)
+        
+        ax1.set_title(f"Event Distribution\n{category_data['category_name']}", fontsize=12, weight='bold', pad=20)
+        ax1.axis('equal')
+        
+        # Bar chart on the right for better readability
+        bars = ax2.barh(range(len(event_names)), event_hours, color=colors)
+        ax2.set_yticks(range(len(event_names)))
+        ax2.set_yticklabels(event_names, fontsize=9)
+        ax2.set_xlabel("Hours", fontsize=12)
+        ax2.set_title(f"Event Types by Time Spent\n{category_data['category_name']}", fontsize=12, weight='bold', pad=20)
+        ax2.grid(True, alpha=0.3, axis='x')
+        
+        # Add value labels on bars
+        for i, (bar, hours) in enumerate(zip(bars, event_hours)):
+            percentage = (hours / total_category_hours * 100) if total_category_hours > 0 else 0
+            ax2.text(hours + max(event_hours) * 0.01, i, f'{hours:.1f}h ({percentage:.1f}%)', 
+                    va='center', fontsize=8, weight='bold')
+        
+        # Set main title for the entire figure
+        fig.suptitle(title, fontsize=16, weight='bold', y=0.95)
+        
+        # Add summary text
+        summary_text = (f"Total: {total_category_hours:.1f} hours | "
+                       f"Category: {category_data['category_percentage']:.1f}% of total calendar | "
+                       f"Events: {len(event_types)} different types")
+        fig.text(0.5, 0.02, summary_text, ha='center', fontsize=10, style='italic')
+        
+        # Adjust layout
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9, bottom=0.08)
         
         # Show the plot
         plt.show()

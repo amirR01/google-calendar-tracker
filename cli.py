@@ -14,19 +14,32 @@ class CalendarTrackerCLI:
         self.analyzer = CalendarAnalyzer()
         self.visualizer = CalendarVisualizer()
     
-    def display_menu(self) -> str:
+    def display_analysis_mode_menu(self) -> str:
         """
-        Display the main menu and get user choice.
+        Display the analysis mode menu and get user choice.
         
         Returns:
-            User's menu choice
+            User's analysis mode choice
         """
         print("Choose analysis mode:")
+        print("  1. General Analysis")
+        print("  2. Weekly Trends")
+        print("  3. Category-based Analysis")
+        choice = input("Enter 1 / 2 / 3: ").strip()
+        return choice
+    
+    def display_timeframe_menu(self) -> str:
+        """
+        Display the timeframe menu for general and category analysis.
+        
+        Returns:
+            User's timeframe choice
+        """
+        print("\nChoose timeframe:")
         print("  1. Week (Sunday–Saturday)")
         print("  2. Month (Calendar month)")
         print("  3. Custom date range")
-        print("  4. Weekly trends (last N weeks)")
-        choice = input("Enter 1 / 2 / 3 / 4: ").strip()
+        choice = input("Enter 1 / 2 / 3: ").strip()
         return choice
     
     def ask_for_visualization(self) -> bool:
@@ -63,15 +76,73 @@ class CalendarTrackerCLI:
             except ValueError:
                 print("Please enter a valid number.")
     
-    def get_date_range_from_user(self) -> Union[Tuple[str, Tuple[date, date]], Tuple[str, int]]:
+    def get_category_choice(self) -> str:
         """
-        Get date range or trend parameters based on user choice.
+        Display available categories and get user's choice.
         
         Returns:
-            Tuple of (mode, parameters) where parameters can be (start_date, end_date) or num_weeks
+            Selected category name
         """
-        choice = self.display_menu()
+        categories = list(self.analyzer.get_category_mapping().values())
+        categories = list(set(categories))  # Remove duplicates
+        categories.sort()  # Sort alphabetically
         
+        print("\nAvailable categories:")
+        for i, category in enumerate(categories, 1):
+            print(f"  {i}. {category}")
+        
+        while True:
+            try:
+                choice = input(f"Select category (1-{len(categories)}): ").strip()
+                idx = int(choice) - 1
+                if 0 <= idx < len(categories):
+                    return categories[idx]
+                else:
+                    print(f"Please enter a number between 1 and {len(categories)}.")
+            except ValueError:
+                print("Please enter a valid number.")
+    
+    def get_analysis_parameters(self) -> Tuple[str, Any]:
+        """
+        Get analysis parameters based on user's choices.
+        
+        Returns:
+            Tuple of (analysis_type, parameters) where parameters vary by type:
+            - For 'general': (timeframe_mode, (start_date, end_date))
+            - For 'trends': num_weeks
+            - For 'category': (category_name, timeframe_mode, (start_date, end_date))
+        """
+        analysis_choice = self.display_analysis_mode_menu()
+        
+        if analysis_choice == "1":  # General Analysis
+            timeframe_choice = self.display_timeframe_menu()
+            timeframe_mode, date_range = self._get_date_range_by_choice(timeframe_choice)
+            return "general", (timeframe_mode, date_range)
+            
+        elif analysis_choice == "2":  # Weekly Trends
+            num_weeks = self.get_number_of_weeks()
+            return "trends", num_weeks
+            
+        elif analysis_choice == "3":  # Category-based Analysis
+            category = self.get_category_choice()
+            timeframe_choice = self.display_timeframe_menu()
+            timeframe_mode, date_range = self._get_date_range_by_choice(timeframe_choice)
+            return "category", (category, timeframe_mode, date_range)
+            
+        else:
+            print("Invalid choice.")
+            raise ValueError("Invalid analysis mode choice")
+    
+    def _get_date_range_by_choice(self, choice: str) -> Tuple[str, Tuple[date, date]]:
+        """
+        Helper method to get date range based on timeframe choice.
+        
+        Args:
+            choice: Timeframe choice ('1', '2', or '3')
+            
+        Returns:
+            Tuple of (mode, (start_date, end_date))
+        """
         if choice == "1":
             mode = "week"
             start_date, end_date = DateRangeUtils.get_week_range()
@@ -81,13 +152,9 @@ class CalendarTrackerCLI:
         elif choice == "3":
             mode = "custom"
             start_date, end_date = self._get_custom_dates()
-        elif choice == "4":
-            mode = "trends"
-            num_weeks = self.get_number_of_weeks()
-            return mode, num_weeks
         else:
-            print("Invalid choice.")
-            raise ValueError("Invalid menu choice")
+            print("Invalid timeframe choice.")
+            raise ValueError("Invalid timeframe choice")
         
         return mode, (start_date, end_date)
     
@@ -183,6 +250,34 @@ class CalendarTrackerCLI:
             print(f"Week {i+1} ({week_data['week_start'].strftime('%m/%d')}-{week_data['week_end'].strftime('%m/%d')}): {total:.1f} total hours")
         print()
 
+    def print_category_report(self, category_data: Dict[str, Any], start_date: date, end_date: date) -> None:
+        """
+        Print the category analysis report to console.
+        
+        Args:
+            category_data: Dictionary containing category analysis results
+            start_date: Analysis start date
+            end_date: Analysis end date
+        """
+        print(f"\n📊 Category Analysis: {category_data['category_name']}")
+        print(f"🗓️  From {start_date.strftime('%A, %Y-%m-%d')} to {end_date.strftime('%A, %Y-%m-%d')}\n")
+        
+        print(f"📈 Overall Statistics:")
+        print(f"   • Total time in {category_data['category_name']}: {category_data['category_total_hours']:.2f} hours")
+        print(f"   • Percentage of total calendar time: {category_data['category_percentage']:.1f}%")
+        print(f"   • Number of different event types: {category_data['total_events_in_category']}")
+        print(f"   • Total calendar time (all categories): {category_data['total_calendar_hours']:.2f} hours\n")
+        
+        if category_data['top_events']:
+            print(f"🎯 Event Types in {category_data['category_name']}:")
+            for i, (event_title, hours) in enumerate(category_data['top_events'], 1):
+                percentage = category_data['event_type_percentages'].get(event_title, 0)
+                print(f"   {i:2d}. {event_title}")
+                print(f"       ⏱️  {hours:.2f} hours ({percentage:.1f}% of category)")
+            print()
+        else:
+            print(f"❌ No events found in {category_data['category_name']} for this timeframe.\n")
+
     def run(self) -> None:
         """
         Main CLI loop - run the complete application.
@@ -191,11 +286,27 @@ class CalendarTrackerCLI:
             print("🗓️ Welcome to Google Calendar Tracker!\n")
             
             # Get user preferences
-            mode_result = self.get_date_range_from_user()
+            analysis_type, parameters = self.get_analysis_parameters()
             
-            if mode_result[0] == "trends":
+            if analysis_type == "general":
+                # Handle general analysis (original functionality)
+                timeframe_mode, (start_date, end_date) = parameters
+                print(f"\n🔄 Analyzing {timeframe_mode} data...")
+                
+                # Perform analysis
+                category_time, top_titles = self.analyzer.analyze_calendar_range(start_date, end_date)
+                
+                # Display results
+                self.print_report(category_time, top_titles, start_date, end_date)
+                
+                # Ask if user wants to see pie chart
+                if self.ask_for_visualization():
+                    chart_title = f"General Analysis: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+                    self.visualizer.create_pie_chart(category_time, top_titles, chart_title)
+            
+            elif analysis_type == "trends":
                 # Handle trends analysis
-                mode, num_weeks = mode_result
+                num_weeks = parameters
                 print(f"\n🔄 Analyzing trends over last {num_weeks} weeks...")
                 
                 # Perform trend analysis
@@ -209,21 +320,21 @@ class CalendarTrackerCLI:
                     chart_title = f"Weekly Trends Analysis: Last {num_weeks} Weeks"
                     self.visualizer.create_trend_chart(trend_data, chart_title)
             
-            else:
-                # Handle regular analysis
-                mode, (start_date, end_date) = mode_result
-                print(f"\n🔄 Analyzing {mode} data...")
+            elif analysis_type == "category":
+                # Handle category-based analysis
+                category_name, timeframe_mode, (start_date, end_date) = parameters
+                print(f"\n🔄 Analyzing '{category_name}' category for {timeframe_mode} period...")
                 
-                # Perform analysis
-                category_time, top_titles = self.analyzer.analyze_calendar_range(start_date, end_date)
+                # Perform category analysis
+                category_data = self.analyzer.analyze_category_breakdown(start_date, end_date, category_name)
                 
                 # Display results
-                self.print_report(category_time, top_titles, start_date, end_date)
+                self.print_category_report(category_data, start_date, end_date)
                 
-                # Ask if user wants to see pie chart
-                if self.ask_for_visualization():
-                    chart_title = f"Time Distribution: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-                    self.visualizer.create_pie_chart(category_time, top_titles, chart_title)
+                # Ask if user wants to see visualization (if there's data to show)
+                if category_data['top_events'] and self.ask_for_visualization():
+                    chart_title = f"Category Analysis: {category_name} ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})"
+                    self.visualizer.create_category_chart(category_data, chart_title)
             
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")
